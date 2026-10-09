@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tareas en torre</title>
+<style>
+  :root {
+    --bg: #f4efe6;
+    --ink: #2b2620;
+    --muted: #6f665a;
+    --wood: #8a5a33;
+    --wood-dark: #5e3b1f;
+    --panel: #fffaf1;
+    --line: #d9cfbf;
+    --warn: #b3261e;
+    --ok: #2e6b3a;
+    --p1: #9ec5a8;
+    --p2: #c9d68a;
+    --p3: #f0c96b;
+    --p4: #ee9a5a;
+    --p5: #d9604c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  header, main, footer { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 24px; }
+  h1 { margin: 0 0 4px; font-size: 1.7rem; }
+  header p { margin: 0; color: var(--muted); }
+
+  form.nueva {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: end;
+    margin: 20px 0; padding: 12px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  form.nueva label { display: flex; flex-direction: column; font-size: .85rem; color: var(--muted); }
+  form.nueva input, form.nueva select, button {
+    font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink);
+  }
+  form.nueva label.titulo { flex: 1 1 220px; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: .55; }
+  button.primario { background: var(--wood); border-color: var(--wood-dark); color: #fff; }
+
+  .estado { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; min-height: 1.6em; }
+  #mensaje { margin: 0; }
+  #mensaje.error { color: var(--warn); }
+  #mensaje.ok { color: var(--ok); }
+
+  .tablero { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  .torre {
+    background: var(--panel); border: 2px solid var(--line); border-radius: 8px; padding: 8px;
+    display: flex; flex-direction: column; cursor: pointer;
+  }
+  .torre.destino:hover { border-color: var(--wood); }
+  .torre input.nombre {
+    font: inherit; font-weight: 600; text-align: center; border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 2px 4px;
+  }
+  .torre input.nombre:hover, .torre input.nombre:focus { border-color: var(--line); background: #fff; }
+  .pila {
+    position: relative; height: 340px; display: flex; flex-direction: column-reverse; align-items: center;
+    padding-bottom: 10px; margin-top: 8px;
+  }
+  .pila::before {
+    content: ""; position: absolute; bottom: 10px; top: 10px; left: 50%; width: 10px; margin-left: -5px;
+    background: var(--wood); border-radius: 5px 5px 0 0;
+  }
+  .pila::after {
+    content: ""; position: absolute; bottom: 0; left: 4%; right: 4%; height: 10px; background: var(--wood-dark); border-radius: 4px;
+  }
+  .disco {
+    position: relative; z-index: 1; height: 30px; margin-top: 2px; border-radius: 15px;
+    border: 1px solid rgba(0,0,0,.25); font-size: .8rem; padding: 0 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1d1a16;
+    transition: transform .15s ease;
+  }
+  .disco[data-p="1"] { background: var(--p1); }
+  .disco[data-p="2"] { background: var(--p2); }
+  .disco[data-p="3"] { background: var(--p3); }
+  .disco[data-p="4"] { background: var(--p4); }
+  .disco[data-p="5"] { background: var(--p5); color: #fff; }
+  .disco.elegido { transform: translateY(-14px); box-shadow: 0 6px 10px rgba(0,0,0,.25); outline: 2px solid var(--ink); }
+
+  .costo { margin: 6px 0 0; text-align: center; font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .acciones { display: none; gap: 8px; margin-top: 12px; justify-content: center; }
+  .acciones.visible { display: flex; }
+
+  .hechas { margin-top: 8px; font-size: .85rem; color: var(--muted); cursor: default; }
+  .hechas ul { margin: 4px 0 0; padding-left: 18px; }
+  .hechas li { text-decoration: line-through; }
+  .hechas li button { font-size: .75rem; padding: 0 6px; margin-left: 6px; text-decoration: none; }
+
+  body.ocupado .tablero, body.ocupado form.nueva, body.ocupado .acciones { pointer-events: none; opacity: .8; }
+  .torre button.aca { margin: 8px auto 0; display: block; }
+
+  footer { color: var(--muted); font-size: .85rem; padding: 24px 16px 40px; }
+
+  @media (max-width: 640px) {
+    .tablero { grid-template-columns: 1fr; }
+    .pila { height: 260px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tareas en torre</h1>
+  <p>Tres proyectos, tres torres. Cada tarea es un disco: cuanto más prioritaria, más ancha. Solo se toca la de arriba, y nunca va una tarea sobre otra de menor prioridad. Lo urgente queda abajo de todo: mudar una torre de <var>n</var> tareas cuesta 2<sup><var>n</var></sup> − 1 movimientos.</p>
+</header>
+
+<main>
+  <form class="nueva" id="form-nueva">
+    <label class="titulo">Tarea
+      <input id="nueva-titulo" maxlength="120" required placeholder="Qué hay que hacer">
+    </label>
+    <label>Prioridad
+      <select id="nueva-prioridad">
+        <option value="1">1 · baja</option>
+        <option value="2">2</option>
+        <option value="3" selected>3</option>
+        <option value="4">4</option>
+        <option value="5">5 · urgente</option>
+      </select>
+    </label>
+    <label>Proyecto
+      <select id="nueva-proyecto"></select>
+    </label>
+    <button class="primario" type="submit">Apilar</button>
+  </form>
+
+  <div class="estado">
+    <p id="mensaje" aria-live="polite"></p>
+    <span>Movimientos: <strong id="movimientos">0</strong></span>
+  </div>
+
+  <div class="acciones" id="acciones">
+    <button type="button" id="btn-completar">Completar</button>
+    <button type="button" id="btn-borrar">Borrar</button>
+    <button type="button" id="btn-soltar">Soltar</button>
+  </div>
+
+  <div class="tablero" id="tablero"></div>
+</main>
+
+<footer>Los datos quedan en este navegador (localStorage). Toda lectura y escritura pasa por el objeto <code>api</code>, que imita una API REST.</footer>
+
+<script>
+/* ------------------------------------------------------------------
+ * Capa de datos. Imita una API REST: cada método devuelve una Promise
+ * y falla con { status, message }. No conoce las reglas de Hanói.
+ * ------------------------------------------------------------------ */
+const api = (() => {
+  const KEY = 'tareas-en-torre';
+  const LATENCIA = 120;
+
+  function cargar() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* sin storage: arranca vacío */ }
+    return { projects: [], tasks: [], seq: 1 };
+  }
+  const db = cargar();
+  function guardar() {
+    try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { /* sin storage */ }
+  }
+
+  const responder = valor => new Promise(r => setTimeout(() => r(structuredClone(valor)), LATENCIA));
+  const fallar = (status, message) => new Promise((_, rej) => setTimeout(() => rej({ status, message }), LATENCIA));
+  const ahora = () => new Date().toISOString();
+  const nuevoId = () => db.seq++;
+
+  const proyecto = id => db.projects.find(p => p.id === id);
+  const tarea = id => db.tasks.find(t => t.id === id);
+
+  function validarNombre(name) {
+    return typeof name === 'string' && name.trim().length > 0 && name.trim().length <= 60;
+  }
+  function validarTitulo(title) {
+    return typeof title === 'string' && title.trim().length > 0 && title.trim().length <= 120;
+  }
+  function validarPrioridad(p) {
+    return Number.isInteger(p) && p >= 1 && p <= 5;
+  }
+
+  return {
+    listProjects() {
+      return responder(db.projects);
+    },
+    createProject({ name } = {}) {
+      if (!validarNombre(name)) return fallar(422, 'El nombre es obligatorio (hasta 60 caracteres).');
+      const t0 = ahora();
+      const p = { id: nuevoId(), name: name.trim(), createdAt: t0, updatedAt: t0 };
+      db.projects.push(p); guardar();
+      return responder(p);
+    },
+    updateProject(id, { name } = {}) {
+      const p = proyecto(id);
+      if (!p) return fallar(404, 'El proyecto no existe.');
+      if (!validarNombre(name)) return fallar(422, 'El nombre es obligatorio (hasta 60 caracteres).');
+      p.name = name.trim(); p.updatedAt = ahora(); guardar();
+      return responder(p);
+    },
+    deleteProject(id) {
+      if (!proyecto(id)) return fallar(404, 'El proyecto no existe.');
+      if (db.tasks.some(t => t.projectId === id && !t.done)) return fallar(409, 'El proyecto tiene tareas pendientes.');
+      db.tasks = db.tasks.filter(t => t.projectId !== id);
+      db.projects = db.projects.filter(p => p.id !== id); guardar();
+      return responder(null);
+    },
+    listTasks(projectId) {
+      if (!proyecto(projectId)) return fallar(404, 'El proyecto no existe.');
+      return responder(db.tasks.filter(t => t.projectId === projectId));
+    },
+    createTask(projectId, { title, priority } = {}) {
+      if (!proyecto(projectId)) return fallar(404, 'El proyecto no existe.');
+      if (!validarTitulo(title)) return fallar(422, 'El título es obligatorio (hasta 120 caracteres).');
+      if (!validarPrioridad(priority)) return fallar(422, 'La prioridad va de 1 a 5.');
+      const t0 = ahora();
+      const t = { id: nuevoId(), projectId, title: title.trim(), priority, done: false, createdAt: t0, updatedAt: t0 };
+      db.tasks.push(t); guardar();
+      return responder(t);
+    },
+    updateTask(id, cambios = {}) {
+      const t = tarea(id);
+      if (!t) return fallar(404, 'La tarea no existe.');
+      if ('projectId' in cambios && !proyecto(cambios.projectId)) return fallar(404, 'El proyecto destino no existe.');
+      if ('title' in cambios && !validarTitulo(cambios.title)) return fallar(422, 'El título es obligatorio (hasta 120 caracteres).');
+      if ('priority' in cambios && !validarPrioridad(cambios.priority)) return fallar(422, 'La prioridad va de 1 a 5.');
+      if ('done' in cambios && typeof cambios.done !== 'boolean') return fallar(422, 'done tiene que ser booleano.');
+      for (const k of ['projectId', 'title', 'priority', 'done']) if (k in cambios) t[k] = k === 'title' ? cambios[k].trim() : cambios[k];
+      t.updatedAt = ahora();
+      guardar();
+      return responder(t);
+    },
+    deleteTask(id) {
+      if (!tarea(id)) return fallar(404, 'La tarea no existe.');
+      db.tasks = db.tasks.filter(t => t.id !== id); guardar();
+      return responder(null);
+    },
+  };
+})();
+
+/* ------------------------------------------------------------------
+ * Interfaz. Acá viven las reglas de Hanói.
+ * ------------------------------------------------------------------ */
+const NOMBRES_INICIALES = ['Trabajo', 'Facultad', 'Casa'];
+const KEY_MOVS = 'tareas-en-torre-movimientos';
+
+const $ = sel => document.querySelector(sel);
+const estado = { proyectos: [], tareas: new Map(), elegida: null, movimientos: leerMovimientos() };
+
+function leerMovimientos() {
+  try { return Number(localStorage.getItem(KEY_MOVS)) || 0; } catch (e) { return 0; }
+}
+function sumarMovimiento() {
+  estado.movimientos++;
+  try { localStorage.setItem(KEY_MOVS, String(estado.movimientos)); } catch (e) {}
+}
+
+function avisar(texto, tipo = '') {
+  const m = $('#mensaje');
+  m.textContent = texto;
+  m.className = tipo;
+}
+
+// La pila no se guarda: se deriva de los datos. Abajo la más prioritaria; a igual
+// prioridad, la que llegó antes a esa torre (updatedAt). Como solo se modifica la
+// tarea de arriba, updatedAt no puede reordenar nada que esté enterrado.
+function pila(projectId) {
+  const llegada = t => t.updatedAt || t.createdAt;
+  return (estado.tareas.get(projectId) || [])
+    .filter(t => !t.done)
+    .sort((a, b) => b.priority - a.priority || llegada(a).localeCompare(llegada(b)) || a.id - b.id);
+}
+function cima(projectId) {
+  const p = pila(projectId);
+  return p[p.length - 1] || null;
+}
+// Mínimo de movimientos para mudar una torre entera a otra, con la tercera libre.
+// Con prioridades todas distintas es 2^n − 1. Las tareas de igual prioridad se
+// mueven en bloque, así que se cuenta por grupos: C(k) = 2·C(k−1) + m_k, donde
+// m_k es el tamaño del grupo k contando desde arriba.
+function costoMudanza(discos) {
+  const grupos = [];
+  for (const t of discos) {
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.p === t.priority) ultimo.n++;
+    else grupos.push({ p: t.priority, n: 1 });
+  }
+  let c = 0;
+  for (let i = grupos.length - 1; i >= 0; i--) c = 2 * c + grupos[i].n;
+  return c;
+}
+function entra(tarea, projectId) {
+  const arriba = cima(projectId);
+  return !arriba || tarea.priority <= arriba.priority;
+}
+
+// Una operación a la vez. Si la api rechaza algo, se vuelve a leer todo: la
+// pantalla nunca muestra un estado que la api no aceptó.
+let enCurso = false;
+async function ocupado(fn) {
+  if (enCurso) return;
+  enCurso = true;
+  document.body.classList.add('ocupado');
+  try { return await fn(); }
+  catch (err) {
+    avisar(err && err.message ? err.message : 'Algo falló.', 'error');
+    try { await recargar(); } catch (e) { /* ya avisamos */ }
+  }
+  finally { enCurso = false; document.body.classList.remove('ocupado'); }
+}
+
+async function recargar() {
+  estado.proyectos = await api.listProjects();
+  const listas = await Promise.all(estado.proyectos.map(p => api.listTasks(p.id)));
+  estado.tareas = new Map(estado.proyectos.map((p, i) => [p.id, listas[i]]));
+  // Si la tarea levantada ya no está arriba (por ejemplo, se apiló otra encima), se suelta.
+  const t = estado.elegida !== null ? tareaPorId(estado.elegida) : null;
+  if (!t || t.done || cima(t.projectId)?.id !== t.id) estado.elegida = null;
+  dibujar();
+}
+
+function tareaPorId(id) {
+  for (const lista of estado.tareas.values()) {
+    const t = lista.find(x => x.id === id);
+    if (t) return t;
+  }
+  return null;
+}
+
+function dibujar() {
+  const sel = $('#nueva-proyecto');
+  const previo = sel.value;
+  sel.innerHTML = '';
+  for (const p of estado.proyectos) sel.add(new Option(p.name, p.id));
+  if (previo) sel.value = previo;
+
+  const tablero = $('#tablero');
+  tablero.innerHTML = '';
+  for (const p of estado.proyectos) {
+    const torre = document.createElement('section');
+    torre.className = 'torre' + (estado.elegida ? ' destino' : '');
+    torre.dataset.projectId = p.id;
+
+    const nombre = document.createElement('input');
+    nombre.className = 'nombre';
+    nombre.value = p.name;
+    nombre.setAttribute('aria-label', 'Nombre del proyecto');
+    nombre.addEventListener('click', e => e.stopPropagation());
+    nombre.addEventListener('change', () => ocupado(async () => {
+      await api.updateProject(p.id, { name: nombre.value });
+      await recargar();
+    }));
+    torre.append(nombre);
+
+    const contenedor = document.createElement('div');
+    contenedor.className = 'pila';
+    const discos = pila(p.id);
+    discos.forEach((t, i) => {
+      const d = document.createElement('button');
+      d.type = 'button';
+      d.className = 'disco' + (estado.elegida === t.id ? ' elegido' : '');
+      d.dataset.p = t.priority;
+      d.style.width = (30 + t.priority * 13) + '%';
+      d.textContent = t.title;
+      d.title = `${t.title} · prioridad ${t.priority}`;
+      const encima = discos.length - 1 - i;
+      d.addEventListener('click', e => { e.stopPropagation(); tocarDisco(t, encima); });
+      contenedor.append(d);
+    });
+    torre.append(contenedor);
+
+    const costo = document.createElement('p');
+    costo.className = 'costo';
+    costo.title = 'Mínimo de movimientos para pasar toda la torre a otra, con la tercera libre.';
+    costo.textContent = discos.length ? `Mudarla entera: ${costoMudanza(discos)} mov.` : 'Vacía';
+    torre.append(costo);
+
+    if (estado.elegida !== null) {
+      const aca = document.createElement('button');
+      aca.type = 'button';
+      aca.className = 'aca';
+      aca.textContent = 'Poner acá';
+      aca.addEventListener('click', e => { e.stopPropagation(); tocarTorre(p.id); });
+      torre.append(aca);
+    }
+
+    const hechas = (estado.tareas.get(p.id) || []).filter(t => t.done);
+    if (hechas.length) {
+      const bloque = document.createElement('div');
+      bloque.className = 'hechas';
+      bloque.innerHTML = `<strong>Hechas (${hechas.length})</strong>`;
+      const ul = document.createElement('ul');
+      for (const t of hechas) {
+        const li = document.createElement('li');
+        li.textContent = t.title;
+        const borrar = document.createElement('button');
+        borrar.type = 'button';
+        borrar.textContent = 'borrar';
+        borrar.addEventListener('click', e => { e.stopPropagation(); ocupado(async () => { await api.deleteTask(t.id); await recargar(); }); });
+        li.append(borrar);
+        ul.append(li);
+      }
+      bloque.append(ul);
+      bloque.addEventListener('click', e => e.stopPropagation());
+      torre.append(bloque);
+    }
+
+    torre.addEventListener('click', () => tocarTorre(p.id));
+    tablero.append(torre);
+  }
+
+  $('#acciones').classList.toggle('visible', estado.elegida !== null);
+  $('#movimientos').textContent = estado.movimientos;
+}
+
+function tocarDisco(t, encima) {
+  if (encima > 0) {
+    const n = encima === 1 ? '1 tarea' : `${encima} tareas`;
+    avisar(`"${t.title}" tiene ${n} encima. Solo se toca la de arriba.`, 'error');
+    return;
+  }
+  if (estado.elegida === t.id) { estado.elegida = null; avisar(''); dibujar(); return; }
+  if (estado.elegida !== null) { tocarTorre(t.projectId); return; }
+  estado.elegida = t.id;
+  avisar(`"${t.title}" levantada. Elegí la torre de destino.`);
+  dibujar();
+}
+
+function tocarTorre(projectId) {
+  if (estado.elegida === null) return;
+  const t = tareaPorId(estado.elegida);
+  if (!t) { estado.elegida = null; dibujar(); return; }
+  if (t.projectId === projectId) { estado.elegida = null; avisar(''); dibujar(); return; }
+  if (!entra(t, projectId)) {
+    const arriba = cima(projectId);
+    avisar(`No entra: "${t.title}" (prioridad ${t.priority}) no puede ir sobre "${arriba.title}" (prioridad ${arriba.priority}).`, 'error');
+    return;
+  }
+  ocupado(async () => {
+    await api.updateTask(t.id, { projectId });
+    sumarMovimiento();
+    estado.elegida = null;
+    avisar('');
+    await recargar();
+  });
+}
+
+$('#btn-soltar').addEventListener('click', () => { estado.elegida = null; avisar(''); dibujar(); });
+$('#btn-completar').addEventListener('click', () => {
+  const t = tareaPorId(estado.elegida);
+  if (!t) return;
+  ocupado(async () => {
+    await api.updateTask(t.id, { done: true });
+    estado.elegida = null;
+    avisar(`"${t.title}" completada.`, 'ok');
+    await recargar();
+  });
+});
+$('#btn-borrar').addEventListener('click', () => {
+  const t = tareaPorId(estado.elegida);
+  if (!t) return;
+  ocupado(async () => {
+    await api.deleteTask(t.id);
+    estado.elegida = null;
+    avisar(`"${t.title}" borrada.`);
+    await recargar();
+  });
+});
+
+$('#form-nueva').addEventListener('submit', e => {
+  e.preventDefault();
+  const title = $('#nueva-titulo').value;
+  const priority = Number($('#nueva-prioridad').value);
+  const projectId = Number($('#nueva-proyecto').value);
+  const arriba = cima(projectId);
+  if (arriba && priority > arriba.priority) {
+    avisar(`No entra: arriba de esa torre está "${arriba.title}" (prioridad ${arriba.priority}). Elegí otra torre o liberá esa.`, 'error');
+    return;
+  }
+  ocupado(async () => {
+    await api.createTask(projectId, { title, priority });
+    $('#nueva-titulo').value = '';
+    avisar('Apilada.', 'ok');
+    await recargar();
+  });
+});
+
+ocupado(async () => {
+  let proyectos = await api.listProjects();
+  for (const nombre of NOMBRES_INICIALES.slice(proyectos.length)) await api.createProject({ name: nombre });
+  await recargar();
+});
+</script>
+</body>
+</html>

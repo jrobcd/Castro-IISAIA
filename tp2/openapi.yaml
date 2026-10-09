@@ -1,0 +1,312 @@
+openapi: 3.1.0
+info:
+  title: Tareas en torre — API de proyectos y tareas
+  version: 1.0.0
+  description: |
+    Contrato REST del sistema cuyo frente es el TP 1 (`tp1/index.html`).
+    Un proyecto agrupa tareas; una tarea pertenece siempre a un proyecto.
+
+    La API no conoce las reglas de la interfaz (torres, discos, "solo se toca la
+    de arriba"): acepta cualquier cambio que sea válido como dato. Esas reglas
+    son de la capa de presentación.
+
+    Sin autenticación: es un sistema de un solo usuario y el contrato lo dice
+    explícitamente (`security: []`) en lugar de omitirlo.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: http://localhost:3000
+    description: Desarrollo local
+security: []
+tags:
+  - name: Proyectos
+    description: Agrupan tareas. En la interfaz del TP 1, cada proyecto es una torre.
+  - name: Tareas
+    description: Pertenecen siempre a un proyecto. Se crean y listan bajo él; se leen, modifican y borran por su propio id.
+
+paths:
+  /projects:
+    get:
+      tags: [Proyectos]
+      operationId: listProjects
+      summary: Listar proyectos
+      responses:
+        '200':
+          description: Todos los proyectos.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Project' }
+    post:
+      tags: [Proyectos]
+      operationId: createProject
+      summary: Crear un proyecto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectInput' }
+            example: { name: Facultad }
+      responses:
+        '201':
+          description: Proyecto creado.
+          headers:
+            Location:
+              description: URL del proyecto creado.
+              schema: { type: string, example: /projects/2 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '422': { $ref: '#/components/responses/Invalido' }
+
+  /projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Proyectos]
+      operationId: getProject
+      summary: Ver un proyecto
+      responses:
+        '200':
+          description: El proyecto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '404': { $ref: '#/components/responses/ProyectoNoExiste' }
+    patch:
+      tags: [Proyectos]
+      operationId: updateProject
+      summary: Renombrar un proyecto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectInput' }
+            example: { name: Tesis }
+      responses:
+        '200':
+          description: Proyecto actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '404': { $ref: '#/components/responses/ProyectoNoExiste' }
+        '422': { $ref: '#/components/responses/Invalido' }
+    delete:
+      tags: [Proyectos]
+      operationId: deleteProject
+      summary: Borrar un proyecto
+      description: |
+        Solo se puede borrar un proyecto sin tareas pendientes. Sus tareas
+        completadas se borran con él.
+      responses:
+        '204':
+          description: Proyecto borrado. Sin cuerpo.
+        '404': { $ref: '#/components/responses/ProyectoNoExiste' }
+        '409':
+          description: El proyecto tiene tareas pendientes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { status: 409, message: El proyecto tiene tareas pendientes. }
+
+  /projects/{projectId}/tasks:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Tareas]
+      operationId: listTasks
+      summary: Listar las tareas de un proyecto
+      description: |
+        Si el proyecto no existe responde 404, no una lista vacía: "el proyecto
+        no tiene tareas" y "el proyecto no existe" son respuestas distintas.
+      parameters:
+        - name: done
+          in: query
+          required: false
+          description: Filtra por estado. Sin el parámetro, devuelve todas.
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Tareas del proyecto.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Task' }
+        '404': { $ref: '#/components/responses/ProyectoNoExiste' }
+    post:
+      tags: [Tareas]
+      operationId: createTask
+      summary: Crear una tarea en un proyecto
+      description: El proyecto sale del path; el cuerpo no lleva `projectId`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskInput' }
+            example: { title: Leer el paper de atención, priority: 4 }
+      responses:
+        '201':
+          description: Tarea creada.
+          headers:
+            Location:
+              description: URL de la tarea creada.
+              schema: { type: string, example: /tasks/17 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '404': { $ref: '#/components/responses/ProyectoNoExiste' }
+        '422': { $ref: '#/components/responses/Invalido' }
+
+  /tasks/{taskId}:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Tareas]
+      operationId: getTask
+      summary: Ver una tarea
+      responses:
+        '200':
+          description: La tarea.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '404': { $ref: '#/components/responses/TareaNoExiste' }
+    patch:
+      tags: [Tareas]
+      operationId: updateTask
+      summary: Modificar o mover una tarea
+      description: |
+        Actualización parcial: solo cambian los campos presentes.
+        Mover una tarea a otro proyecto es cambiar su `projectId`; acá el
+        proyecto no está en el path, así que viajar en el cuerpo no lo duplica.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskPatch' }
+            examples:
+              mover:
+                summary: Mover a otro proyecto
+                value: { projectId: 3 }
+              completar:
+                summary: Marcar como hecha
+                value: { done: true }
+      responses:
+        '200':
+          description: Tarea actualizada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '404': { $ref: '#/components/responses/TareaNoExiste' }
+        '422': { $ref: '#/components/responses/Invalido' }
+    delete:
+      tags: [Tareas]
+      operationId: deleteTask
+      summary: Borrar una tarea
+      responses:
+        '204':
+          description: Tarea borrada. Sin cuerpo.
+        '404': { $ref: '#/components/responses/TareaNoExiste' }
+
+components:
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+
+  responses:
+    ProyectoNoExiste:
+      description: El proyecto del path no existe.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { status: 404, message: El proyecto no existe. }
+    TareaNoExiste:
+      description: La tarea del path no existe.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { status: 404, message: La tarea no existe. }
+    Invalido:
+      description: |
+        El cuerpo no cumple el schema: falta un campo, sobra un campo, un valor
+        está fuera de rango o referencia un proyecto que no existe.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { status: 422, message: La prioridad va de 1 a 5. }
+
+  schemas:
+    ProjectInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 60 }
+
+    Project:
+      type: object
+      required: [id, name, createdAt, updatedAt]
+      properties:
+        id: { type: integer, readOnly: true, example: 2 }
+        name: { type: string, example: Facultad }
+        createdAt: { type: string, format: date-time, readOnly: true }
+        updatedAt: { type: string, format: date-time, readOnly: true }
+
+    TaskInput:
+      type: object
+      additionalProperties: false
+      required: [title, priority]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: 1 es la más baja, 5 la más urgente.
+
+    TaskPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        priority: { type: integer, minimum: 1, maximum: 5 }
+        done: { type: boolean }
+        projectId:
+          type: integer
+          minimum: 1
+          description: Proyecto destino. Si no existe, 422.
+
+    Task:
+      type: object
+      required: [id, projectId, title, priority, done, createdAt, updatedAt]
+      properties:
+        id: { type: integer, readOnly: true, example: 17 }
+        projectId: { type: integer, example: 2 }
+        title: { type: string, example: Leer el paper de atención }
+        priority: { type: integer, minimum: 1, maximum: 5, example: 4 }
+        done: { type: boolean, example: false }
+        createdAt: { type: string, format: date-time, readOnly: true }
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Cambia con cualquier modificación de la tarea, incluida una mudanza de proyecto.
+
+    Error:
+      type: object
+      required: [status, message]
+      properties:
+        status: { type: integer, example: 404 }
+        message: { type: string, example: La tarea no existe. }

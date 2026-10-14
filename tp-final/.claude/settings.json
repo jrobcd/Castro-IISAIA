@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv sync)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv run fastapi dev:*)",
+      "Bash(uv run --group e2e python scripts/recorrido_navegador.py:*)",
+      "Bash(curl:*)",
+      "Edit(backend/**)",
+      "Edit(frontend/**)",
+      "Edit(tests/**)",
+      "Edit(scripts/**)"
+    ],
+    "ask": [
+      "Edit(openapi.yaml)",
+      "Edit(README.md)",
+      "Bash(rm tareas.db)"
+    ],
+    "deny": [
+      "Edit(docs/plan.md)",
+      "Edit(../tp1/**)",
+      "Edit(../tp2/**)",
+      "Edit(tareas.db)"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+[project]
+name = "tareas-en-torre"
+version = "1.0.0"
+description = "TP final: la interfaz del TP 1 sobre una implementación del contrato del TP 2."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi[standard]>=0.115",
+    "sqlalchemy>=2.0",
+    "pyyaml>=6.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "httpx2>=0.1",
+    "jsonschema>=4.23",
+]
+e2e = [
+    "playwright>=1.50",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.uv]
+package = false

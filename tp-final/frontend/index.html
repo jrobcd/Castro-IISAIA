@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tareas en torre</title>
+<link rel="stylesheet" href="css/estilos.css">
+<script type="module" src="js/app.js"></script>
+</head>
+<body>
+<header>
+  <h1>Tareas en torre</h1>
+  <p>Tres proyectos, tres torres. Cada tarea es un disco: cuanto más prioritaria, más ancha. Solo se toca la de arriba, y nunca va una tarea sobre otra de menor prioridad. Lo urgente queda abajo de todo: mudar una torre de <var>n</var> tareas cuesta 2<sup><var>n</var></sup> − 1 movimientos.</p>
+</header>
+
+<main>
+  <form class="nueva" id="form-nueva">
+    <label class="titulo">Tarea
+      <input id="nueva-titulo" maxlength="120" required placeholder="Qué hay que hacer">
+    </label>
+    <label>Prioridad
+      <select id="nueva-prioridad">
+        <option value="1">1 · baja</option>
+        <option value="2">2</option>
+        <option value="3" selected>3</option>
+        <option value="4">4</option>
+        <option value="5">5 · urgente</option>
+      </select>
+    </label>
+    <label>Proyecto
+      <select id="nueva-proyecto"></select>
+    </label>
+    <button class="primario" type="submit">Apilar</button>
+  </form>
+
+  <div class="estado">
+    <p id="mensaje" aria-live="polite"></p>
+    <span>Movimientos: <strong id="movimientos">0</strong></span>
+  </div>
+
+  <div class="acciones" id="acciones">
+    <button type="button" id="btn-completar">Completar</button>
+    <button type="button" id="btn-borrar">Borrar</button>
+    <button type="button" id="btn-soltar">Soltar</button>
+  </div>
+
+  <div class="tablero" id="tablero"></div>
+</main>
+
+<footer>Los datos viven en el servidor (<a href="/docs">contrato de la API</a>). Toda lectura y escritura pasa por <code>js/api.js</code>.</footer>
+
+</body>
+</html>
